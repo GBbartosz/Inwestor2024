@@ -23,9 +23,9 @@ def get_update_notebook():
     # updates first the oldest records
     global today
     df = pd.read_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx', index_col=0)
-    df = df.sort_values(by='last_update_date', ascending=True)
-    df = df[df['last_update_date'] != today]
-    return df
+    df = df.sort_values(by='last_update_date', ascending=True, na_position='first')
+    df_to_update = df[df['last_update_date'] != today]
+    return df, df_to_update
 
 
 def download_financial_statements(ticker):
@@ -34,32 +34,45 @@ def download_financial_statements(ticker):
 
     def api_limit(mydata):
         # ends execution iif api limit is reached
-        global update_df
+        global total_update_df
         if 'Information' in mydata.keys():
-            update_df.to_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx')
+            total_update_df.to_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx')
             print('You reached api limit (25 per day)!')
             sys.exit()
 
-    apikey = 'KMTF2LUFBCUIXYQU'
-    functions = ['OVERVIEW', 'INCOME_STATEMENT', 'BALANCE_SHEET', 'CASH_FLOW']
+    def download_data(myticker, myfunction):
+        apikey = 'KMTF2LUFBCUIXYQU'
+        url = f'https://www.alphavantage.co/query?function={myfunction}&symbol={myticker}&apikey={apikey}'
+        r = requests.get(url)
+        mydata = r.json()
+        api_limit(mydata)
+        return mydata
+
+    functions = ['INCOME_STATEMENT', 'BALANCE_SHEET', 'CASH_FLOW']
     for function in functions:
         file_path = f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{function}.csv'
-        url = f'https://www.alphavantage.co/query?function={function}&symbol={ticker}&apikey={apikey}'
-        r = requests.get(url)
-        data = r.json()
-        api_limit(data)
-        if function in ['INCOME_STATEMENT', 'BALANCE_SHEET', 'CASH_FLOW']:
-            new_df = pd.DataFrame(data['quarterlyReports']).set_index('fiscalDateEnding')
-            try:
-                old_df = pd.read_csv(file_path, index_col=0)
-                mask = ~new_df.index.isin(old_df.index)
-                df = pd.concat([new_df[mask], old_df])
-            except FileNotFoundError:
-                df = new_df
-            df = df.sort_index(ascending=False)
-        else:
-            df = pd.DataFrame(data=data.values(), columns=['data'], index=data.keys())
+        data = download_data(ticker, function)
+        new_df = pd.DataFrame(data['quarterlyReports']).set_index('fiscalDateEnding')
+        try:
+            old_df = pd.read_csv(file_path, index_col=0)
+            mask = ~new_df.index.isin(old_df.index)
+            if True not in mask:  # break if no new data
+                try:  # try to read last updated file. If doesn't exist there is still need to download data
+                    pd.read_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_CASH_FLOW.csv', index_col=0)
+                    break
+                except FileNotFoundError:
+                    pass
+            df = pd.concat([new_df[mask], old_df])
+        except FileNotFoundError:
+            df = new_df
+        df = df.sort_index(ascending=False)
         df.to_csv(file_path)
+
+    function = 'OVERVIEW'
+    file_path = f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{function}.csv'
+    data = download_data(ticker, function)
+    df = pd.DataFrame(data=data.values(), columns=['data'], index=data.keys())
+    df.to_csv(file_path)
 
 
 def download_price(ticker):
@@ -70,14 +83,14 @@ def download_price(ticker):
 
 
 pandas_df_display_options()
-today = datetime.datetime.today().date()
-update_df = get_update_notebook()
+today = pd.to_datetime(datetime.datetime.today().date())
+total_update_df, to_update_df = get_update_notebook()
 
-for ticker in update_df.index:
+for ticker in to_update_df.index:
     print(ticker)
     download_financial_statements(ticker)
     download_price(ticker)
-    update_df.loc[ticker, 'last_update_date'] = today
+    total_update_df.loc[ticker, 'last_update_date'] = today
     print('Success!')
 
-update_df.to_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx')
+total_update_df.to_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx')
