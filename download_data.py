@@ -85,8 +85,9 @@ def download_price(ticker):
 pandas_df_display_options()
 today = pd.to_datetime(datetime.datetime.today().date())
 total_update_df, to_update_df = get_update_notebook()
+tickers = to_update_df.index
 
-for ticker in to_update_df.index:
+for ticker in tickers:
     print(ticker)
     download_financial_statements(ticker)
     download_price(ticker)
