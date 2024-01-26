@@ -48,11 +48,12 @@ def download_financial_statements(ticker):
         api_limit(mydata)
         return mydata
 
-    functions = ['INCOME_STATEMENT', 'BALANCE_SHEET', 'CASH_FLOW']
+    functions = ['INCOME_STATEMENT', 'BALANCE_SHEET', 'EARNINGS', 'CASH_FLOW']
     for function in functions:
         file_path = f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{function}.csv'
         data = download_data(ticker, function)
-        new_df = pd.DataFrame(data['quarterlyReports']).set_index('fiscalDateEnding')
+        quarterly_data_key = 'quarterlyEarnings' if function == 'EARNINGS' else 'quarterlyReports'
+        new_df = pd.DataFrame(data[quarterly_data_key]).set_index('fiscalDateEnding')
         try:
             old_df = pd.read_csv(file_path, index_col=0)
             mask = ~new_df.index.isin(old_df.index)
@@ -68,17 +69,22 @@ def download_financial_statements(ticker):
         df = df.sort_index(ascending=False)
         df.to_csv(file_path)
 
+    # download only once ever
     function = 'OVERVIEW'
     file_path = f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{function}.csv'
-    data = download_data(ticker, function)
-    df = pd.DataFrame(data=data.values(), columns=['data'], index=data.keys())
-    df.to_csv(file_path)
+    try:
+        pd.read_csv(file_path)
+    except FileNotFoundError:
+        data = download_data(ticker, function)
+        df = pd.DataFrame(data=data.values(), columns=['data'], index=data.keys())
+        df.to_csv(file_path)
 
 
 def download_price(ticker):
     # always creates new file
     price_df = yf.download(ticker, start='2018-01-01', end=datetime.datetime.today().date())
     price_df = price_df.sort_index(ascending=False)
+    price_df.columns = [c.replace(' ', '_') for c in price_df.columns]
     price_df.to_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\price\\{ticker}_price.csv')
 
 
@@ -89,7 +95,7 @@ tickers = to_update_df.index
 
 for ticker in tickers:
     print(ticker)
-    download_financial_statements(ticker)
+    #download_financial_statements(ticker)
     download_price(ticker)
     total_update_df.loc[ticker, 'last_update_date'] = today
     print('Success!')
