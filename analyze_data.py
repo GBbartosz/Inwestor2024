@@ -1,5 +1,5 @@
 import pandas as pd
-
+import re
 from mergeddfread import MergedDfRead
 
 
@@ -68,28 +68,48 @@ def indicators_calculation(df):
 
 def create_final_data_file(mytickers):
     global folder_path
-    indicator_columns = []
+
+    def get_columns(df):
+        base_columns = ['ticker', 'date']
+        i_columns = [c for c in df.columns if 'i_' in c]
+        is_columns = ['totalRevenue']
+
+        mycolumns = base_columns + is_columns + i_columns
+        return mycolumns
+
+    def rename_df_columns(df):
+        renaming_columns = {}
+        pattern_is_ = re.compile('^is_.*')
+        pattern_i_ = re.compile('^i_.*')
+        for col in df.columns:
+            changed_col = col
+            changed_col = changed_col[3:] if pattern_is_.match(changed_col) else changed_col
+            changed_col = changed_col[2:] if pattern_i_.match(changed_col) else changed_col
+            renaming_columns[col] = changed_col
+        df = df.rename(columns=renaming_columns)
+        return df
+
     dfs = []
     for tic in mytickers:
         try:
             file_path = f'{folder_path}analyze\\{tic}_indicators.csv'
             df = pd.read_csv(file_path, index_col=0)
-            df = df[[c for c in df.columns if 'i_' in c]]
             df['ticker'] = tic
             df['date'] = df.index
+            indicator_columns = get_columns(df)
+            df = df[indicator_columns]
+            df = rename_df_columns(df)
             dfs.append(df)
-        except:
+        except FileNotFoundError:
             print('No file {tic}_indicators.csv')
 
     final_df = pd.concat(dfs, ignore_index=True)
-    final_df.to_csv(f'{folder_path}final_data.csv')
-
-
+    final_df.to_csv(f'{folder_path}final_data.csv', index=False)
 
 
 folder_path = 'C:\\Users\\barto\\Desktop\\Inwestor_2024\\'
 pandas_df_display_options()
-update_df = pd.read_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx')
+update_df = pd.read_excel(f'{folder_path}update_notebook.xlsx')
 update_df = update_df[update_df['last_update_date'].notna()]
 tickers = update_df['ticker']
 for ticker in tickers:

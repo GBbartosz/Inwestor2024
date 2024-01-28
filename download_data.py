@@ -87,9 +87,6 @@ def download_price(ticker):
     price_df.columns = [c.replace(' ', '_') for c in price_df.columns]
     price_df.to_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\price\\{ticker}_price.csv')
 
-    yf_ticker = yf.Ticker(ticker)
-    historical_data = yf_ticker.history(period='max')
-    print(historical_data.tail())
 
 pandas_df_display_options()
 today = pd.to_datetime(datetime.datetime.today().date())
