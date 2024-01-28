@@ -119,15 +119,19 @@ class MergedDfRead:
         self.e_EPS = self.df['e_EPS']
 
         # INDICATORS
-        self.shares = None
-        self.marketCapitalization = None
-        self.PS = None
-        self.PE = None
+        self.i_marketCapitalization = None
+        self.i_grossMargin = None
+        self.i_EBITDAMargin = None
+        self.i_EBITMargin = None
+        self.i_netMargin = None
+
+        self.i_PS = None
+        self.i_PE = None
 
     def update_df_columns_from_class_attributes(self, this_class_instance):
         # giving back attribute values to df
         for attribute in dir(this_class_instance):
             if '__' not in attribute and attribute not in ['df', 'update_df_columns_from_class_attributes']:
-                print(attribute)
+                #print(attribute)
                 this_class_instance.df[attribute] = getattr(self, attribute)
         return this_class_instance

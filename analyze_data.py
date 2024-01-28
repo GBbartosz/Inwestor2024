@@ -19,8 +19,11 @@ def pandas_df_display_options():
 def read_financial_statement(financial_statement, ticker):
     df = pd.read_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{financial_statement}.csv', index_col=0).sort_index(ascending=True)
     df.index = pd.to_datetime(df.index)
+
+    balance_not_summaring_cols = ['commonStockSharesOutstanding']
+
     for col in df.columns:
-        if col != 'reportedCurrency':
+        if col != 'reportedCurrency' and col not in balance_not_summaring_cols:
             df[col] = df[col].rolling(window=4, min_periods=4).sum()  # summaring quarters to years
     df = df.iloc[3:, :]
     return df
@@ -45,30 +48,52 @@ def calculation_income_statement(df):
 
 def indicators_calculation(df):
     mdf = MergedDfRead(df)
-    mdf.shares = (mdf.is_netIncome / mdf.e_EPS).round(0)
 
-    mdf.marketCapitalization = mdf.Adj_Close * mdf.shares
-    mdf.PS = mdf.marketCapitalization / mdf.is_totalRevenue
-    mdf.PE = mdf.marketCapitalization / mdf.is_netIncome
+    # Capitalization
+    mdf.marketCapitalization = mdf.Adj_Close * mdf.b_commonStockSharesOutstanding
 
+    # Margins
+    mdf.i_grossMargin = mdf.is_grossProfit / mdf.is_totalRevenue
+    mdf.i_EBITDAMargin = mdf.is_ebitda / mdf.is_totalRevenue
+    mdf.i_EBITMargin = mdf.is_ebit / mdf.is_totalRevenue
+    mdf.i_netMargin = mdf.is_netIncome / mdf.is_totalRevenue
 
-    #df['shares'] = (df['is_netIncome'] / df['e_EPS']).round(0)
-#
-    #df['MarketCapitalization'] = df['Close'] * df['shares']
-    #df['PS'] = df['MarketCapitalization'] / df['is_']
-    #df['PE'] = df['Close'] * df['shares'] / df['is_netIncome']
+    # Price indicators
+    mdf.i_PS = mdf.marketCapitalization / mdf.is_totalRevenue
+    mdf.i_PE = mdf.marketCapitalization / mdf.is_netIncome
 
     mdf = mdf.update_df_columns_from_class_attributes(mdf)
-
     return mdf.df
 
 
+def create_final_data_file(mytickers):
+    global folder_path
+    indicator_columns = []
+    dfs = []
+    for tic in mytickers:
+        try:
+            file_path = f'{folder_path}analyze\\{tic}_indicators.csv'
+            df = pd.read_csv(file_path, index_col=0)
+            df = df[[c for c in df.columns if 'i_' in c]]
+            df['ticker'] = tic
+            df['date'] = df.index
+            dfs.append(df)
+        except:
+            print('No file {tic}_indicators.csv')
+
+    final_df = pd.concat(dfs, ignore_index=True)
+    final_df.to_csv(f'{folder_path}final_data.csv')
+
+
+
+
+folder_path = 'C:\\Users\\barto\\Desktop\\Inwestor_2024\\'
 pandas_df_display_options()
 update_df = pd.read_excel('C:\\Users\\barto\\Desktop\\Inwestor_2024\\update_notebook.xlsx')
 update_df = update_df[update_df['last_update_date'].notna()]
 tickers = update_df['ticker']
-tickers = ['MCD']
 for ticker in tickers:
+    print(ticker)
     isdf = read_financial_statement('INCOME_STATEMENT', ticker)
     bdf = read_financial_statement('BALANCE_SHEET', ticker)
     cfdf = read_financial_statement('CASH_FLOW', ticker)
@@ -96,5 +121,6 @@ for ticker in tickers:
     # calculation
     merged_df = indicators_calculation(merged_df)
 
-
     merged_df.to_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\analyze\\{ticker}_indicators.csv')
+
+create_final_data_file(tickers)
