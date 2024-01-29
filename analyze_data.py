@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import re
 from mergeddfread import MergedDfRead
@@ -50,7 +51,7 @@ def indicators_calculation(df):
     mdf = MergedDfRead(df)
 
     # Capitalization
-    mdf.marketCapitalization = mdf.Adj_Close * mdf.b_commonStockSharesOutstanding
+    mdf.i_marketCapitalization = mdf.Adj_Close * mdf.b_commonStockSharesOutstanding
 
     # Margins
     mdf.i_grossMargin = mdf.is_grossProfit / mdf.is_totalRevenue
@@ -59,8 +60,8 @@ def indicators_calculation(df):
     mdf.i_netMargin = mdf.is_netIncome / mdf.is_totalRevenue
 
     # Price indicators
-    mdf.i_PS = mdf.marketCapitalization / mdf.is_totalRevenue
-    mdf.i_PE = mdf.marketCapitalization / mdf.is_netIncome
+    mdf.i_PS = mdf.i_marketCapitalization / mdf.is_totalRevenue
+    mdf.i_PE = mdf.i_marketCapitalization / mdf.is_netIncome
 
     mdf = mdf.update_df_columns_from_class_attributes(mdf)
     return mdf.df
@@ -72,7 +73,7 @@ def create_final_data_file(mytickers):
     def get_columns(df):
         base_columns = ['ticker', 'date']
         i_columns = [c for c in df.columns if 'i_' in c]
-        is_columns = ['totalRevenue']
+        is_columns = ['is_nonInterestIncome', 'is_operatingIncome', 'is_researchAndDevelopment', 'is_netIncome', 'b_commonStockSharesOutstanding']
 
         mycolumns = base_columns + is_columns + i_columns
         return mycolumns
@@ -80,10 +81,12 @@ def create_final_data_file(mytickers):
     def rename_df_columns(df):
         renaming_columns = {}
         pattern_is_ = re.compile('^is_.*')
+        pattern_b_ = re.compile('^b_.*')
         pattern_i_ = re.compile('^i_.*')
         for col in df.columns:
             changed_col = col
             changed_col = changed_col[3:] if pattern_is_.match(changed_col) else changed_col
+            changed_col = changed_col[2:] if pattern_b_.match(changed_col) else changed_col
             changed_col = changed_col[2:] if pattern_i_.match(changed_col) else changed_col
             renaming_columns[col] = changed_col
         df = df.rename(columns=renaming_columns)
@@ -105,6 +108,46 @@ def create_final_data_file(mytickers):
 
     final_df = pd.concat(dfs, ignore_index=True)
     final_df.to_csv(f'{folder_path}final_data.csv', index=False)
+    return final_df
+
+
+def prepare_functions_for_power_bi(cols):
+
+    def change_data_type(cols):
+        strs = []
+        for col in cols:
+            if col not in ['ticker', 'date']:
+                strs.append(f'{{"{col}", type number}}')
+        mystr = ', '.join(strs)
+        print('-----------------------------------------------')
+        print(mystr)
+        print('-----------------------------------------------')
+
+    def prepare_parameter_table_string(cols):
+        row_strs = []
+        for col in cols:
+            if col not in ['ticker', 'date']:
+                row_strs.append(f'ROW("ColumnName", "{col}")')
+        row_str = ', '.join(row_strs)
+        parameter_table_str = f'ParameterTable =\nUNION(\n{row_str}\n)'
+        print('-----------------------------------------------')
+        print(parameter_table_str)
+        print('-----------------------------------------------')
+
+    def prepare_dynamicyaxismeasure(cols):
+        row_strs = []
+        for col in cols:
+            if col not in ['ticker', 'date']:
+                row_strs.append(f'"{col}", SUM(final_data[{col}])')
+        row_str = ', '.join(row_strs)
+        dynamicyaxismeasure_str = f'DynamicYAxisMeasure = SWITCH(\n[SelectedColumn],\n{row_str},\nBLANK()\n)'
+        print('-----------------------------------------------')
+        print(dynamicyaxismeasure_str)
+        print('-----------------------------------------------')
+
+    change_data_type(cols)
+    prepare_parameter_table_string(cols)
+    prepare_dynamicyaxismeasure(cols)
 
 
 folder_path = 'C:\\Users\\barto\\Desktop\\Inwestor_2024\\'
@@ -140,7 +183,9 @@ for ticker in tickers:
 
     # calculation
     merged_df = indicators_calculation(merged_df)
+    merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
 
     merged_df.to_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\analyze\\{ticker}_indicators.csv')
 
-create_final_data_file(tickers)
+final_df = create_final_data_file(tickers)
+prepare_functions_for_power_bi(final_df.columns)
