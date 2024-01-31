@@ -18,10 +18,20 @@ def pandas_df_display_options():
 
 
 def read_financial_statement(financial_statement, ticker):
+
+    def update_balance(df, ticker):
+        if financial_statement == 'BALANCE_SHEET':
+            if ticker == 'GOOGL':
+                condition = df.index <= '2022-03-31'
+                multiplication = 20
+                df.loc[condition, 'commonStockSharesOutstanding'] *= multiplication
+        return df
+
     df = pd.read_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{financial_statement}.csv', index_col=0).sort_index(ascending=True)
     df.index = pd.to_datetime(df.index)
 
     balance_not_summaring_cols = ['commonStockSharesOutstanding']
+    df = update_balance(df, ticker)
 
     for col in df.columns:
         if col != 'reportedCurrency' and col not in balance_not_summaring_cols:
