@@ -19,12 +19,28 @@ def pandas_df_display_options():
 
 def read_financial_statement(financial_statement, ticker):
 
+    def multiply_shares(mdf, mdate, multiplication):
+        condition = mdf.index <= mdate
+        mdf.loc[condition, 'commonStockSharesOutstanding'] *= multiplication
+        return mdf
+
     def update_balance(df, ticker):
         if financial_statement == 'BALANCE_SHEET':
+            if ticker == 'AAPL':
+                df = multiply_shares(df, '2020-06-30', 4)
+                df = multiply_shares(df, '2014-03-31', 5)
+            if ticker == 'AMZN':
+                df = multiply_shares(df, '2022-03-31', 20)
             if ticker == 'GOOGL':
-                condition = df.index <= '2022-03-31'
-                multiplication = 20
-                df.loc[condition, 'commonStockSharesOutstanding'] *= multiplication
+                df = multiply_shares(df, '2022-03-31', 20)
+            if ticker == 'JD':
+                df = multiply_shares(df, '2021-03-31', 0.5)
+            if ticker == 'NVDA':
+                df = multiply_shares(df, '2021-05-02', 4)
+            if ticker == 'TSLA':
+                df = multiply_shares(df, '2022-06-30', 3)
+                df = multiply_shares(df, '2020-06-30', 5)
+
         return df
 
     df = pd.read_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{financial_statement}.csv', index_col=0).sort_index(ascending=True)

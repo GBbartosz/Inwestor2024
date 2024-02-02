@@ -53,8 +53,11 @@ def download_financial_statements(ticker):
         file_path = f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_{function}.csv'
         data = download_data(ticker, function)
         quarterly_data_key = 'quarterlyEarnings' if function == 'EARNINGS' else 'quarterlyReports'
-        print(data.keys())
-        new_df = pd.DataFrame(data[quarterly_data_key]).set_index('fiscalDateEnding')
+        try:
+            new_df = pd.DataFrame(data[quarterly_data_key]).set_index('fiscalDateEnding')
+        except KeyError:
+            print(data.keys())
+            print(data)
         try:
             old_df = pd.read_csv(file_path, index_col=0)
             mask = ~new_df.index.isin(old_df.index)
