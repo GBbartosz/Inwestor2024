@@ -133,11 +133,17 @@ def create_final_data_file(mytickers):
             print('No file {tic}_indicators.csv')
 
     final_df = pd.concat(dfs, ignore_index=True)
+    final_df['id'] = final_df['ticker'] + final_df['date'].astype(str)
     final_df.to_csv(f'{folder_path}final_data.csv', index=False)
-    return final_df
+
+    final_df2 = final_df.copy()
+    final_df2.columns = [f'{c}2' for c in final_df2.columns]
+    final_df2.to_csv(f'{folder_path}final_data2.csv', index=False)
+
+    return final_df, final_df2
 
 
-def prepare_functions_for_power_bi(cols):
+def prepare_functions_for_power_bi(cols, num):
 
     def change_data_type(cols):
         strs = []
@@ -149,31 +155,31 @@ def prepare_functions_for_power_bi(cols):
         print(mystr)
         print('-----------------------------------------------')
 
-    def prepare_parameter_table_string(cols):
+    def prepare_parameter_table_string(cols, num):
         row_strs = []
         for col in cols:
             if col not in ['ticker', 'date']:
                 row_strs.append(f'ROW("ColumnName", "{col}")')
         row_str = ', '.join(row_strs)
-        parameter_table_str = f'ParameterTable =\nUNION(\n{row_str}\n)'
+        parameter_table_str = f'ParameterTable{num} =\nUNION(\n{row_str}\n)'
         print('-----------------------------------------------')
         print(parameter_table_str)
         print('-----------------------------------------------')
 
-    def prepare_dynamicyaxismeasure(cols):
+    def prepare_dynamicyaxismeasure(cols, num):
         row_strs = []
         for col in cols:
-            if col not in ['ticker', 'date']:
-                row_strs.append(f'"{col}", SUM(final_data[{col}])')
+            if col not in [f'ticker{num}', f'date{num}', f'id{num}']:
+                row_strs.append(f'"{col}", SUM(final_data{num}[{col}])')
         row_str = ', '.join(row_strs)
-        dynamicyaxismeasure_str = f'DynamicYAxisMeasure = SWITCH(\n[SelectedColumn],\n{row_str},\nBLANK()\n)'
+        dynamicyaxismeasure_str = f'DynamicYAxisMeasure{num} = SWITCH(\n[SelectedColumn{num}],\n{row_str},\nBLANK()\n)'
         print('-----------------------------------------------')
         print(dynamicyaxismeasure_str)
         print('-----------------------------------------------')
 
     change_data_type(cols)
-    prepare_parameter_table_string(cols)
-    prepare_dynamicyaxismeasure(cols)
+    prepare_parameter_table_string(cols, num)
+    prepare_dynamicyaxismeasure(cols, num)
 
 
 folder_path = 'C:\\Users\\barto\\Desktop\\Inwestor_2024\\'
@@ -213,5 +219,6 @@ for ticker in tickers:
 
     merged_df.to_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\analyze\\{ticker}_indicators.csv')
 
-final_df = create_final_data_file(tickers)
-prepare_functions_for_power_bi(final_df.columns)
+final_df, final_df2 = create_final_data_file(tickers)
+prepare_functions_for_power_bi(final_df.columns, '')
+prepare_functions_for_power_bi(final_df2.columns, 2)
