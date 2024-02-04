@@ -64,6 +64,15 @@ def read_earnings(ticker):
     return df
 
 
+def read_overview(ticker):
+    df = pd.read_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_OVERVIEW.csv', index_col=0)
+    currency = df.loc['Currency', 'data']
+    country = df.loc['Country', 'data']
+    sector = df.loc['Sector', 'data']
+    industry = df.loc['Industry', 'data']
+    return currency, country, sector, industry
+
+
 def calculation_income_statement(df):
     # revenue growth
     df['i_revenue_growth_1y'] = df['totalRevenue'] / df['totalRevenue'].shift(1*4) - 1
@@ -98,10 +107,11 @@ def create_final_data_file(mytickers):
 
     def get_columns(df):
         base_columns = ['ticker', 'date']
+        overview_columns = ['currency', 'country', 'sector', 'industry']
         i_columns = [c for c in df.columns if 'i_' in c]
         is_columns = ['is_nonInterestIncome', 'is_operatingIncome', 'is_researchAndDevelopment', 'is_netIncome', 'b_commonStockSharesOutstanding']
 
-        mycolumns = base_columns + is_columns + i_columns
+        mycolumns = base_columns + is_columns + i_columns + overview_columns
         return mycolumns
 
     def rename_df_columns(df):
@@ -143,12 +153,34 @@ def create_final_data_file(mytickers):
     return final_df, final_df2
 
 
+def time_window(df):
+    # creates df with only last row for each year for each ticker
+    global folder_path
+
+    df['date'] = pd.to_datetime(df['date'])
+    years = df['date'].dt.year.unique()
+    window_df = None
+    for year in years:
+
+        ydf = df[df['date'].dt.year == year]
+        idx_max_dates = ydf.groupby('ticker')['date'].idxmax()  # gets max index value for each ticker
+        if window_df is None:
+            window_df = ydf.loc[idx_max_dates].reset_index(drop=True)
+        else:
+            new_df = ydf.loc[idx_max_dates].reset_index(drop=True)
+            window_df = pd.concat([window_df, new_df], ignore_index=True)
+    window_df['year'] = window_df['date'].dt.year
+    window_df.to_csv(f'{folder_path}time_window.csv', index=False)
+
+
 def prepare_functions_for_power_bi(cols, num):
+    notin_cols = ['ticker', 'ticker2', 'date', 'date2', 'id', 'id2', 'currency', 'currency2', 'country', 'country2', 'sector', 'sector2', 'industry', 'industry2']
 
     def change_data_type(cols):
+        nonlocal notin_cols
         strs = []
         for col in cols:
-            if col not in ['ticker', 'date']:
+            if col not in notin_cols:
                 strs.append(f'{{"{col}", type number}}')
         mystr = ', '.join(strs)
         print('-----------------------------------------------')
@@ -156,9 +188,10 @@ def prepare_functions_for_power_bi(cols, num):
         print('-----------------------------------------------')
 
     def prepare_parameter_table_string(cols, num):
+        nonlocal notin_cols
         row_strs = []
         for col in cols:
-            if col not in ['ticker', 'date']:
+            if col not in notin_cols:
                 row_strs.append(f'ROW("ColumnName", "{col}")')
         row_str = ', '.join(row_strs)
         parameter_table_str = f'ParameterTable{num} =\nUNION(\n{row_str}\n)'
@@ -167,12 +200,13 @@ def prepare_functions_for_power_bi(cols, num):
         print('-----------------------------------------------')
 
     def prepare_dynamicyaxismeasure(cols, num):
+        nonlocal notin_cols
         row_strs = []
         for col in cols:
-            if col not in [f'ticker{num}', f'date{num}', f'id{num}']:
+            if col not in notin_cols:
                 row_strs.append(f'"{col}", SUM(final_data{num}[{col}])')
         row_str = ', '.join(row_strs)
-        dynamicyaxismeasure_str = f'DynamicYAxisMeasure{num} = SWITCH(\n[SelectedColumn{num}],\n{row_str},\nBLANK()\n)'
+        dynamicyaxismeasure_str = f'indicator{num} = SWITCH(\n[SelectedColumn{num}],\n{row_str},\nBLANK()\n)'
         print('-----------------------------------------------')
         print(dynamicyaxismeasure_str)
         print('-----------------------------------------------')
@@ -193,6 +227,7 @@ for ticker in tickers:
     bdf = read_financial_statement('BALANCE_SHEET', ticker)
     cfdf = read_financial_statement('CASH_FLOW', ticker)
     edf = read_earnings(ticker)
+    currency, country, sector, industry = read_overview(ticker)
 
     odf = pd.read_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\financial_statements\\{ticker}_OVERVIEW.csv')
 
@@ -209,6 +244,10 @@ for ticker in tickers:
     merged_df = pd.merge_asof(merged_df, bdf.add_prefix('b_'), left_index=True, right_index=True, direction='backward')
     merged_df = pd.merge_asof(merged_df, cfdf.add_prefix('cf_'), left_index=True, right_index=True, direction='backward')
     merged_df = pd.merge_asof(merged_df, edf.add_prefix('e_'), left_index=True, right_index=True, direction='backward')
+    merged_df['currency'] = currency
+    merged_df['country'] = country
+    merged_df['sector'] = sector
+    merged_df['industry'] = industry
 
     merged_df = merged_df.sort_index(ascending=True)
     merged_df = merged_df.apply(lambda col: col.ffill(), axis=0)
@@ -220,5 +259,6 @@ for ticker in tickers:
     merged_df.to_csv(f'C:\\Users\\barto\\Desktop\\Inwestor_2024\\analyze\\{ticker}_indicators.csv')
 
 final_df, final_df2 = create_final_data_file(tickers)
+time_window(final_df)
 prepare_functions_for_power_bi(final_df.columns, '')
 prepare_functions_for_power_bi(final_df2.columns, 2)
